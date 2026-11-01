@@ -36,7 +36,10 @@ class DeepSeekClient:
                      "Content-Type": "application/json"}, method="POST")
         try:
             with urllib.request.urlopen(request, timeout=90) as response:
-                return json.load(response)["choices"][0]["message"]
+                payload = json.load(response)
+                message = payload["choices"][0]["message"]
+                message["_usage"] = payload.get("usage") or {}
+                return message
         except urllib.error.HTTPError as error:
             # Avoid echoing server bodies that might contain request details.
             raise RuntimeError(f"DeepSeek API returned HTTP {error.code}") from error

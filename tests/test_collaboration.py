@@ -6,6 +6,8 @@ import pytest
 
 from app.core.models import Order
 from app.services.collaboration import CollaborationService
+from app.agent.investigation import InvestigationAgent, InvestigationTools
+import json
 
 
 def case(tmp_path, *, due_offset=2):
@@ -123,6 +125,136 @@ def test_business_resolution_keeps_original_rule_finding_and_cancels_reminder(tm
     service.run_agent("SO-001")
     assert any(n["status"] == "queued" for n in service.notifications("SO-001")
                if n["role"] == "driver" and "待处理" in n["subject"])
+    service.close()
+
+
+class ScenarioInvestigator:
+    """Controllable stand-in for the model; tests tool routing without API cost."""
+
+    sequence = ["get_case_snapshot", "list_evidence", "get_party_statements"]
+
+    def chat(self, messages, tools):
+        used = [m["tool_calls"][0]["function"]["name"] for m in messages
+                if m.get("role") == "assistant" and m.get("tool_calls")]
+        if len(used) < 3:
+            name, args = self.sequence[len(used)], {}
+        else:
+            statements = json.loads(messages[-1]["content"])
+            damaged = any("破损" in r["note"] for r in statements["receipts"])
+            snapshot = json.loads(next(m["content"] for m in messages if m.get("role") == "tool"
+                                       and "open_issues" in json.loads(m["content"])))
+            issue = next(i for i in snapshot["open_issues"]
+                         if i["code"].startswith("ACCEPTED_QTY_MISMATCH"))
+            name = "propose_next_step"
+            args = {"issue_id": issue["issue_id"],
+                    "target_role": "driver" if damaged else "receiver",
+                    "request": ("请提供卸货时的破损照片和退货数量记录，以核对短收原因。" if damaged else
+                                "请核对实收数量并上传现场清点记录，说明少收五袋的情况。"),
+                    "reason": ("收货人说明有破损，需核对卸货现场与退货去向。" if damaged else
+                               "送货登记和实收数量不一致，当前缺少现场清点依据。"),
+                    "evidence_refs": issue["sources"][:1]}
+        return {"content": None, "tool_calls": [{"id": f"t-{len(used)}", "type": "function",
+                "function": {"name": name, "arguments": json.dumps(args, ensure_ascii=False)}}]}
+
+
+@pytest.mark.parametrize("note,expected_role", [
+    ("现场清点只收到 85 袋", "receiver"),
+    ("现场收到 85 袋，另外 5 袋包装破损退回", "driver"),
+])
+def test_investigation_selects_next_party_from_evidence_and_waits_for_approval(
+        tmp_path, note, expected_role):
+    service, tokens = case(tmp_path)
+    service.record_delivery(tokens["driver"], "DN-001", Decimal("90"))
+    service.record_receipt(tokens["receiver"], "DN-001", Decimal("85"),
+                           condition="partial", note=note)
+    before = len(service.notifications("SO-001"))
+    result = InvestigationAgent(service, ScenarioInvestigator()).run("SO-001")
+    assert result["status"] == "draft"
+    assert [e["tool"] for e in result["tool_log"]] == [
+        "get_case_snapshot", "list_evidence", "get_party_statements", "propose_next_step"]
+    assert service.investigation_runs("SO-001")[0]["draft_id"] == result["draft_id"]
+    draft = service.investigations("SO-001")[0]
+    assert draft["target_role"] == expected_role
+    assert draft["status"] == "draft"
+    assert len(service.notifications("SO-001")) == before
+    service.approve_investigation("SO-001", draft["id"])
+    with pytest.raises(PermissionError):
+        service.respond_to_investigation(tokens["receiver" if expected_role == "driver" else "driver"],
+                                         draft["id"], "这是其他人的回复")
+    service.respond_to_investigation(tokens[expected_role], draft["id"],
+                                     "已核对现场记录，附照片。", ("proof.pdf", b"synthetic evidence"))
+    assert service.investigations("SO-001")[0]["status"] == "answered"
+    assert service.investigation_responses("SO-001")[0]["attachment_valid"] is True
+    assert len([n for n in service.notifications("SO-001") if n["role"] == expected_role]) > 0
+    next_result = InvestigationAgent(service, ScenarioInvestigator()).run("SO-001")
+    assert next_result["status"] == "draft"
+    assert next_result["draft_id"] != draft["id"]
+    service.close()
+
+
+def test_supplier_can_answer_approved_investigation_without_sending_to_other_party(tmp_path):
+    service, tokens = case(tmp_path)
+    service.record_delivery(tokens["driver"], "DN-001", Decimal("90"))
+    service.record_receipt(tokens["receiver"], "DN-001", Decimal("85"),
+                           condition="partial", note="现场有五袋包装破损退回")
+    issue = next(i for i in service.run_agent("SO-001")["issues"]
+                 if i["code"].startswith("ACCEPTED_QTY_MISMATCH"))
+    draft = service.save_investigation_draft("SO-001", issue_id=issue["issue_id"],
+        target_role="supplier", request="请核对仓库是否收到五袋退货，并提交退货入库记录。",
+        reason="收货人称有五袋破损退回，需要仓库记录确认去向。",
+        evidence_refs=issue["sources"][:1])
+    before = len(service.notifications("SO-001"))
+    service.approve_investigation("SO-001", draft["draft_id"])
+    assert len(service.notifications("SO-001")) == before
+    with pytest.raises(PermissionError):
+        service.respond_to_investigation(tokens["driver"], draft["draft_id"], "司机代答无效")
+    service.supplier_respond_to_investigation("SO-001", draft["draft_id"],
+        "仓库已收到五袋退货，附入库记录。", ("return.pdf", b"synthetic return record"))
+    assert service.investigations("SO-001")[0]["status"] == "answered"
+    assert service.investigation_responses("SO-001")[0]["role"] == "supplier"
+    service.close()
+
+
+def test_investigation_does_not_call_model_for_normal_case_or_existing_draft(tmp_path):
+    class MustNotCall:
+        def chat(self, messages, tools):
+            raise AssertionError("正常订单或待审批草稿不应再次调用模型")
+
+    service, tokens = case(tmp_path)
+    service.record_delivery(tokens["driver"], "DN-001", Decimal("100"))
+    assert InvestigationAgent(service, MustNotCall()).run("SO-001")["model_calls"] == 0
+    service.record_receipt(tokens["receiver"], "DN-001", Decimal("95"),
+                           condition="partial", note="现场只收到了九十五袋")
+    first = InvestigationAgent(service, ScenarioInvestigator()).run("SO-001")
+    second = InvestigationAgent(service, MustNotCall()).run("SO-001")
+    assert second["draft_id"] == first["draft_id"]
+    assert second["model_calls"] == 0
+    service.close()
+
+
+def test_investigation_rejects_unknown_evidence_and_stale_approval(tmp_path):
+    service, tokens = case(tmp_path)
+    service.record_delivery(tokens["driver"], "DN-001", Decimal("90"))
+    service.record_receipt(tokens["receiver"], "DN-001", Decimal("85"),
+                           condition="partial", note="现场只收到 85 袋")
+    issue = next(i for i in service.run_agent("SO-001")["issues"]
+                 if i["code"].startswith("ACCEPTED_QTY_MISMATCH"))
+    kwargs = {"issue_id": issue["issue_id"], "target_role": "driver",
+              "request": "请提交卸货时的照片和清点记录，核对短收数量。",
+              "reason": "收货记录与司机送货数量相差五袋，需要卸货证据。",
+              "evidence_refs": [issue["sources"][0]]}
+    with pytest.raises(ValueError):
+        service.save_investigation_draft("SO-001", **{**kwargs, "evidence_refs": ["other-order"]})
+    tools = InvestigationTools(service, "SO-001")
+    with pytest.raises(ValueError):
+        tools.execute("propose_next_step", kwargs)
+    first = service.save_investigation_draft("SO-001", **kwargs)
+    same = service.save_investigation_draft("SO-001", **kwargs)
+    assert first["draft_id"] == same["draft_id"] and same["reused"]
+    service.record_delivery(tokens["driver"], "DN-002", Decimal("10"))
+    assert service.investigations("SO-001")[0]["status"] == "stale"
+    with pytest.raises(ValueError):
+        service.approve_investigation("SO-001", first["draft_id"])
     service.close()
 
 

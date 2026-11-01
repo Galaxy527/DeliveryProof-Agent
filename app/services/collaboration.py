@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import base64
+import json
 import os
 import secrets
 import smtplib
@@ -88,6 +89,22 @@ class CollaborationService:
                 explanation TEXT NOT NULL, evidence_path TEXT NOT NULL,
                 evidence_sha256 TEXT NOT NULL, approved_by TEXT NOT NULL,
                 approved_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS case_investigations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL,
+                issue_id TEXT NOT NULL, target_role TEXT NOT NULL,
+                request TEXT NOT NULL, reason TEXT NOT NULL, evidence_refs TEXT NOT NULL,
+                case_fingerprint TEXT NOT NULL, status TEXT NOT NULL,
+                created_at TEXT NOT NULL, approved_at TEXT);
+            CREATE TABLE IF NOT EXISTS case_investigation_responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, investigation_id INTEGER NOT NULL,
+                order_id TEXT NOT NULL, role TEXT NOT NULL, actor TEXT NOT NULL,
+                note TEXT NOT NULL, evidence_path TEXT, evidence_sha256 TEXT,
+                submitted_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS case_investigation_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL,
+                status TEXT NOT NULL, draft_id INTEGER, tool_log TEXT NOT NULL,
+                model_calls INTEGER NOT NULL, total_tokens INTEGER NOT NULL,
+                created_at TEXT NOT NULL);
         """)
 
     def close(self) -> None:
@@ -335,6 +352,8 @@ class CollaborationService:
                           if d["kind"] == "confirmation" and d["active"])
         candidates.extend((f"差异处理 {r['issue_id']}", r["evidence_path"])
                           for r in self.resolutions(order_id))
+        candidates.extend((f"调查回复 {r['ref']}", r["evidence_ref"])
+                          for r in self.investigation_responses(order_id))
         found = []
         upload_root = (self.root / "uploads").resolve()
         for label, ref in candidates:
@@ -342,8 +361,174 @@ class CollaborationService:
                 continue
             path = (self.root / ref).resolve()
             if path.is_relative_to(upload_root) and path.is_file():
-                found.append({"label": label, "path": path, "filename": path.name})
+                found.append({"label": label, "ref": ref, "path": path, "filename": path.name})
         return found
+
+    def investigation_responses(self, order_id: str) -> list[dict]:
+        self.order(order_id)
+        rows = self.db.execute("""SELECT id,investigation_id,role,actor,note,evidence_path,
+            evidence_sha256,submitted_at FROM case_investigation_responses
+            WHERE order_id=? ORDER BY id""", (order_id,)).fetchall()
+        result = []
+        for row in rows:
+            response_id, draft_id, role, actor, note, ref, expected, submitted = row
+            path = (self.root / ref).resolve() if ref else None
+            valid = bool(path and path.is_relative_to((self.root / "uploads").resolve()) and
+                         path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == expected)
+            result.append({"ref": f"response:{response_id}", "investigation_id": draft_id,
+                           "role": role, "actor": actor, "note": note,
+                           "evidence_ref": ref if valid else None,
+                           "attachment_valid": valid if ref else None,
+                           "submitted_at": submitted})
+        return result
+
+    def _investigation_fingerprint(self, order_id: str) -> str:
+        docs = [(d["source"], d["active"], d["payload"]) for d in
+                self.manager.get_documents(order_id)]
+        responses = self.investigation_responses(order_id)
+        material = json.dumps({"documents": docs, "responses": responses,
+                               "resolutions": self.resolutions(order_id)},
+                              sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+    def investigations(self, order_id: str) -> list[dict]:
+        self.order(order_id)
+        fingerprint = self._investigation_fingerprint(order_id)
+        rows = self.db.execute("""SELECT id,issue_id,target_role,request,reason,evidence_refs,
+            case_fingerprint,status,created_at,approved_at FROM case_investigations
+            WHERE order_id=? ORDER BY id DESC""", (order_id,)).fetchall()
+        result = []
+        for row in rows:
+            draft_id, issue_id, role, request, reason, refs, saved_fingerprint, status, created, approved = row
+            if status == "draft" and saved_fingerprint != fingerprint:
+                status = "stale"
+            result.append({"id": draft_id, "issue_id": issue_id, "target_role": role,
+                           "request": request, "reason": reason,
+                           "evidence_refs": json.loads(refs), "status": status,
+                           "created_at": created, "approved_at": approved})
+        return result
+
+    def save_investigation_run(self, order_id: str, outcome: dict) -> None:
+        self.order(order_id)
+        self.db.execute("""INSERT INTO case_investigation_runs
+            (order_id,status,draft_id,tool_log,model_calls,total_tokens,created_at)
+            VALUES(?,?,?,?,?,?,?)""", (order_id, outcome["stop_reason"], outcome.get("draft_id"),
+                                    json.dumps(outcome["tool_log"], ensure_ascii=False),
+                                    outcome["model_calls"], outcome["total_tokens"], utc_now().isoformat()))
+        self.db.commit()
+
+    def investigation_runs(self, order_id: str) -> list[dict]:
+        self.order(order_id)
+        rows = self.db.execute("""SELECT id,status,draft_id,tool_log,model_calls,total_tokens,created_at
+            FROM case_investigation_runs WHERE order_id=? ORDER BY id DESC""", (order_id,))
+        return [{"id": row[0], "status": row[1], "draft_id": row[2],
+                 "tool_log": json.loads(row[3]), "model_calls": row[4],
+                 "total_tokens": row[5], "created_at": row[6]} for row in rows]
+
+    def save_investigation_draft(self, order_id: str, *, issue_id: str, target_role: str,
+                                 request: str, reason: str, evidence_refs: list[str]) -> dict:
+        """Called by the model tool. It cannot send messages or settle a dispute."""
+        self.order(order_id)
+        issues = {i.issue_id: i for i in self.manager.verify(None, order_id).issues}
+        issue = issues.get(issue_id)
+        if not issue or not issue.code.startswith(("ACCEPTED_QTY_MISMATCH", "RECEIPT_EXCEPTION",
+                                                  "ORDER_QTY_MISMATCH")):
+            raise ValueError("只能调查当前未解决的数量或收货差异")
+        if issue_id in {r["issue_id"] for r in self.resolutions(order_id)}:
+            raise ValueError("该差异已有处理依据")
+        if target_role not in {"driver", "receiver", "supplier"}:
+            raise ValueError("无效的调查对象")
+        if not isinstance(request, str) or not isinstance(reason, str) or not (
+                12 <= len(request.strip()) <= 500 and 12 <= len(reason.strip()) <= 500):
+            raise ValueError("补证请求与原因须具体、简短")
+        if not isinstance(evidence_refs, list) or not evidence_refs or len(evidence_refs) > 8:
+            raise ValueError("须引用已查询到的证据")
+        allowed = {d["source"] for d in self.manager.get_documents(order_id)}
+        allowed.update(f["ref"] for f in self.evidence_files(order_id))
+        allowed.update(r["ref"] for r in self.investigation_responses(order_id))
+        allowed.update(issue.sources)
+        if any(not isinstance(ref, str) or ref not in allowed for ref in evidence_refs):
+            raise ValueError("证据引用不属于当前订单")
+        fingerprint = self._investigation_fingerprint(order_id)
+        existing = self.db.execute("""SELECT id FROM case_investigations WHERE order_id=?
+            AND issue_id=? AND case_fingerprint=? AND status IN ('draft','approved')
+            ORDER BY id DESC LIMIT 1""", (order_id, issue_id, fingerprint)).fetchone()
+        if existing:
+            return {"draft_id": existing[0], "sent": False, "reused": True}
+        cursor = self.db.execute("""INSERT INTO case_investigations
+            (order_id,issue_id,target_role,request,reason,evidence_refs,case_fingerprint,status,created_at)
+            VALUES(?,?,?,?,?,?,?,'draft',?)""",
+            (order_id, issue_id, target_role, request.strip(), reason.strip(),
+             json.dumps(evidence_refs, ensure_ascii=False), fingerprint, utc_now().isoformat()))
+        self.db.commit()
+        self._event(order_id, "investigation_drafted", "agent",
+                    f"调查草稿 {cursor.lastrowid}：建议向{ROLES.get(target_role, '供应商')}补证")
+        return {"draft_id": cursor.lastrowid, "sent": False, "reused": False}
+
+    def approve_investigation(self, order_id: str, draft_id: int) -> None:
+        """Supplier explicitly releases a scoped request to the named participant."""
+        draft = next((d for d in self.investigations(order_id) if d["id"] == draft_id), None)
+        if not draft or draft["status"] != "draft":
+            raise ValueError("调查草稿已失效或已经批准，请重新调查")
+        active = {i.issue_id for i in self.manager.verify(None, order_id).issues}
+        if draft["issue_id"] not in active:
+            raise ValueError("原始差异已消失，请重新调查")
+        now = utc_now()
+        self.db.execute("UPDATE case_investigations SET status='approved',approved_at=? WHERE id=?",
+                        (now.isoformat(), draft_id))
+        self.db.commit()
+        if draft["target_role"] != "supplier":
+            self._queue(order_id, draft["target_role"], f"investigation:{draft_id}",
+                        f"订单 {order_id} 的补证请求", draft["request"], now)
+        self._event(order_id, "investigation_approved", "supplier",
+                    f"已批准调查请求 {draft_id}；对象：{draft['target_role']}")
+
+    def respond_to_investigation(self, token: str, draft_id: int, note: str,
+                                 evidence: tuple[str, bytes] | None = None) -> None:
+        actor = self.participant(token)
+        self._record_investigation_response(actor["order_id"], draft_id, actor["role"],
+                                            actor["name"], note, evidence)
+
+    def supplier_respond_to_investigation(self, order_id: str, draft_id: int, note: str,
+                                          evidence: tuple[str, bytes] | None = None) -> None:
+        """Called only from the supplier-authenticated owner page."""
+        self.order(order_id)
+        self._record_investigation_response(order_id, draft_id, "supplier", "供应商负责人",
+                                            note, evidence)
+
+    def _record_investigation_response(self, order_id: str, draft_id: int, role: str,
+                                       actor_name: str, note: str,
+                                       evidence: tuple[str, bytes] | None) -> None:
+        draft = next((d for d in self.investigations(order_id) if d["id"] == draft_id), None)
+        if not draft or draft["status"] != "approved" or draft["target_role"] != role:
+            raise PermissionError("这项补证请求不属于你的待办")
+        active = {i.issue_id for i in self.manager.verify(None, order_id).issues}
+        if draft["issue_id"] not in active or draft["issue_id"] in {
+                r["issue_id"] for r in self.resolutions(order_id)}:
+            raise ValueError("原始差异已处理，请重新调查")
+        if len(note.strip()) < 5 or len(note) > 1000:
+            raise ValueError("请填写 5 至 1000 字的情况说明")
+        ref = expected = None
+        if evidence:
+            name, content = evidence
+            if not content or len(content) > 12 * 1024 * 1024 or Path(name).suffix.lower() not in {
+                    ".pdf", ".png", ".jpg", ".jpeg", ".webp"}:
+                raise ValueError("补证附件须为 12 MB 以内的 PDF 或图片")
+            folder = self.root / "uploads"
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"followup-{secrets.token_hex(12)}-{Path(name).name}"
+            path.write_bytes(content)
+            ref = path.relative_to(self.root).as_posix()
+            expected = hashlib.sha256(content).hexdigest()
+        self.db.execute("""INSERT INTO case_investigation_responses
+            (investigation_id,order_id,role,actor,note,evidence_path,evidence_sha256,submitted_at)
+            VALUES(?,?,?,?,?,?,?,?)""", (draft_id, order_id, role, actor_name,
+                                        note.strip(), ref, expected, utc_now().isoformat()))
+        self.db.execute("UPDATE case_investigations SET status='answered' WHERE id=?", (draft_id,))
+        self.db.commit()
+        self._event(order_id, "investigation_answered", role,
+                    f"补证请求 {draft_id} 已回复，待供应商复查")
+        self.run_agent(order_id)
 
     def resolve_issue(self, order_id: str, issue_id: str, explanation: str,
                       filename: str, content: bytes) -> None:

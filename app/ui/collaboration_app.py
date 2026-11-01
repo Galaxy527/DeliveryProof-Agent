@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 from app.agent.client import DeepSeekClient
+from app.agent.investigation import InvestigationAgent
 from app.core.models import Order
 from app.services.collaboration import CollaborationService, ROLES
 from app.services.document_parser import extract_document
@@ -166,7 +167,7 @@ def owner_page() -> None:
             return
         selected = st.selectbox("选择订单", [o.order_id for o in orders], key="owner_order_select")
         summary(selected)
-        if st.button("立即运行协调 Agent 并检查到期任务", type="primary"):
+        if st.button("检查订单与到期任务", type="primary"):
             with st.spinner("正在检查订单与到期任务…"):
                 result = service.run_agent(selected)
                 sent = service.dispatch_queued()
@@ -178,6 +179,73 @@ def owner_page() -> None:
             st.rerun()
         if st.session_state.get("agent_notice"):
             st.success(st.session_state.pop("agent_notice"))
+        st.markdown("#### AI 异常调查")
+        st.caption("用于数量或收货争议：AI 先查看当前记录和各方说明，再提出一项补证建议。"
+                   "每次点击才调用模型；建议不会自动发送或结案。")
+        if st.button("调查当前差异并提出下一步", key=f"investigate_{selected}"):
+            try:
+                with st.spinner("正在查询证据并生成待审核建议…"):
+                    outcome = InvestigationAgent(service, DeepSeekClient()).run(selected)
+                if outcome["status"] == "draft":
+                    st.success("已形成调查草稿。请核对下方依据和请求内容，再决定是否批准。")
+                else:
+                    st.info("本次没有形成有效补证建议；原因：" + outcome["stop_reason"])
+                st.caption(f"本次模型调用 {outcome['model_calls']} 次；"
+                           f"接口报告消耗 {outcome['total_tokens']} tokens。")
+            except Exception as error:
+                st.error(f"调查未完成：{type(error).__name__}。请确认模型密钥和网络连接。")
+        investigations = service.investigations(selected)
+        if investigations:
+            status_labels = {"draft": "待供应商审批", "approved": "已批准，等待回复",
+                             "answered": "已回复，可再次调查", "stale": "资料已变化，请重新调查"}
+            for draft in investigations[:8]:
+                with st.container(border=True):
+                    st.write(f"调查 #{draft['id']} · {status_labels.get(draft['status'], draft['status'])}"
+                             f" · 对象：{ROLES.get(draft['target_role'], '供应商负责人')}")
+                    st.write(draft["request"])
+                    st.caption("调查依据：" + draft["reason"])
+                    st.caption("引用：" + "、".join(draft["evidence_refs"]))
+                    if draft["status"] == "draft":
+                        if st.button("审核通过并发出补证请求", key=f"approve_{draft['id']}"):
+                            try:
+                                service.approve_investigation(selected, draft["id"])
+                                service.dispatch_queued()
+                                st.success("请求已批准。发送状态请查看下方提醒记录。")
+                                st.rerun()
+                            except Exception as error:
+                                st.error(str(error))
+                    if draft["status"] == "approved" and draft["target_role"] == "supplier":
+                        with st.form(f"supplier_reply_{draft['id']}"):
+                            reply = st.text_area("供应商核查结果 *", key=f"supplier_note_{draft['id']}")
+                            attachment = st.file_uploader("核查依据照片或 PDF（可选）",
+                                type=["pdf", "png", "jpg", "jpeg", "webp"],
+                                key=f"supplier_file_{draft['id']}")
+                            if st.form_submit_button("提交核查结果"):
+                                try:
+                                    service.supplier_respond_to_investigation(selected, draft["id"], reply,
+                                        evidence=(attachment.name, attachment.getvalue()) if attachment else None)
+                                    st.success("核查结果已记录。可以再次运行 AI 调查。")
+                                    st.rerun()
+                                except Exception as error:
+                                    st.error(str(error))
+            with st.expander("查看调查回复"):
+                responses = service.investigation_responses(selected)
+                if not responses:
+                    st.caption("还没有补证回复。")
+                for response in responses:
+                    st.write(f"{ROLES.get(response['role'], '供应商负责人')}：{response['note']}")
+                    st.caption(f"来源 {response['ref']} · {response['submitted_at']}")
+            with st.expander("查看 AI 查询过程和调用量"):
+                tool_labels = {"get_case_snapshot": "查询订单与差异",
+                               "list_evidence": "查看证据目录",
+                               "get_party_statements": "查看各方说明",
+                               "propose_next_step": "提出下一步补证建议"}
+                for run in service.investigation_runs(selected)[:5]:
+                    steps = " → ".join(tool_labels.get(e["tool"], e["tool"])
+                                       for e in run["tool_log"])
+                    st.write(f"{run['created_at']} · {steps or run['status']}")
+                    st.caption(f"模型调用 {run['model_calls']} 次，接口报告消耗 "
+                               f"{run['total_tokens']} tokens；状态：{run['status']}")
         with st.expander("查看并下载原始附件"):
             files = service.evidence_files(selected)
             if not files:
@@ -237,7 +305,7 @@ def owner_page() -> None:
                                participant["email"] or "", participant["phone"] or "",
                                contact_allowed=bool(participant["contact_allowed"]))
                 st.rerun()
-        st.markdown("#### Agent 提醒记录")
+        st.markdown("#### 提醒记录")
         notices = service.notifications(selected)
         if notices:
             status_labels = {"manual": "未发送，需人工转发", "queued": "未发送，等待渠道处理",
@@ -257,7 +325,9 @@ def owner_page() -> None:
             st.caption("目前没有达到提醒时点的任务。")
         with st.expander("查看交付与复核日志"):
             for event in service.events(selected):
-                st.write(f"{event['created_at']} · {event['actor_role']} · {event['detail']}")
+                actor = {"agent": "规则巡检", "supplier": "供应商", "driver": "配送人员",
+                         "receiver": "收货人"}.get(event["actor_role"], event["actor_role"])
+                st.write(f"{event['created_at']} · {actor} · {event['detail']}")
 
 
 def participant_page(token: str) -> None:
@@ -273,6 +343,25 @@ def participant_page(token: str) -> None:
                 unsafe_allow_html=True)
     st.write(f"你好，{person['name']}。客户：{order.customer}；商品：{order.items[0].sku}；"
              f"订单数量：{order.items[0].quantity}。")
+    assigned = [d for d in service.investigations(order.order_id)
+                if d["target_role"] == role and d["status"] == "approved"]
+    if assigned:
+        st.markdown("#### 需要你补充核实的事项")
+        for draft in assigned:
+            with st.form(f"investigation_reply_{draft['id']}"):
+                st.write(draft["request"])
+                reply = st.text_area("请说明实际情况 *", key=f"reply_{draft['id']}")
+                attachment = st.file_uploader("现场照片或文件（可选）",
+                                              type=["pdf", "png", "jpg", "jpeg", "webp"],
+                                              key=f"reply_file_{draft['id']}")
+                if st.form_submit_button("提交补证回复"):
+                    try:
+                        service.respond_to_investigation(token, draft["id"], reply,
+                            evidence=(attachment.name, attachment.getvalue()) if attachment else None)
+                        st.success("回复已记录。供应商可查看并继续调查。")
+                        st.rerun()
+                    except Exception as error:
+                        st.error(str(error))
     if role == "driver":
         st.markdown("#### 填写本次送货")
         st.caption("请按仓库或实际交付记录填写原始送货单号和实送数量。你不能修改订单价格或客户签收。")
@@ -346,7 +435,7 @@ elif st.session_state.get("owner_authenticated"):
 else:
     st.markdown('<section class="hero"><div class="eyebrow">一笔订单 · 多方协作</div>'
                 '<h1>从发货到签收，<br><em>每一步有人负责。</em></h1>'
-                '<p>供应商建立订单并分配任务，配送人员提交送货，客户指定收货人确认。协调 Agent 持续核对并提醒未完成环节。</p></section>',
+                '<p>供应商建单，配送人员登记送货，收货人确认实收。系统自动核对与提醒；遇到复杂差异时可请 AI 协助调查。</p></section>',
                 unsafe_allow_html=True)
     st.markdown("### 供应商登录")
     st.write("供应商先建立订单并邀请相关人员。配送人员和收货人会收到各自的专属任务链接，"
