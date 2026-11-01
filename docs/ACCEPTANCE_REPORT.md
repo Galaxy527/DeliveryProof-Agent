@@ -12,7 +12,7 @@
 
 自动验证：项目内虚拟环境运行 `pytest`，**23 项通过**；`tests/manual_collaboration_ui.py` 使用隔离数据库覆盖建单、配送、收货、自动复核；旧版 `tests/manual_ui_e2e.py` 也通过。`python -m app.worker --once --db .tmp\worker-smoke.sqlite3` 完成后台检查冒烟测试，未发送外部通知。
 
-验收数据已从默认协作数据库归档，本机入口恢复为空白工作区。本机历史目录 `docs/screenshots/` 中的图片属于旧版单人工作台，**不代表当前三方页面，也不随开源仓库发布**。
+验收数据已从默认协作数据库归档，本机入口恢复为空白工作区。当前三方页面的实际运行截图见[三方交付演示](DEMO_WALKTHROUGH.md)。本机历史目录 `docs/screenshots/` 中的图片属于旧版单人工作台，**不代表当前三方页面，也不随开源仓库发布**。
 
 ## 验收边界
 
