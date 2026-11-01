@@ -28,7 +28,6 @@ st.markdown("<style>" + (ROOT / "app/ui/theme.css").read_text(encoding="utf-8") 
 database = Path(os.getenv("DELIVERYPROOF_DB", str(ROOT / "deliveryproof-collaboration.sqlite3")))
 service = CollaborationService(database)
 password_file = ROOT / ".tmp" / "owner-password.txt"
-setup_flag = ROOT / ".tmp" / "owner-setup-complete"
 password_file.parent.mkdir(parents=True, exist_ok=True)
 if not os.getenv("DELIVERYPROOF_ADMIN_PASSWORD") and not password_file.exists():
     password_file.write_text(secrets.token_urlsafe(24), encoding="utf-8")
@@ -440,18 +439,17 @@ else:
     st.markdown("### 供应商登录")
     st.write("供应商先建立订单并邀请相关人员。配送人员和收货人会收到各自的专属任务链接，"
              "打开链接即可填写自己负责的记录，无需供应商口令。")
-    if not os.getenv("DELIVERYPROOF_ADMIN_PASSWORD") and not setup_flag.exists():
-        st.info("第一次在这台电脑上使用？先查看并保存初始口令，再登录建立第一笔订单。")
-        if st.button("显示本机初始口令"):
-            st.code(owner_password)
-            st.caption("请把口令保存在只有供应商负责人能访问的位置。首次登录后这里不会再显示。")
+    if not os.getenv("DELIVERYPROOF_ADMIN_PASSWORD"):
+        st.info("首次使用？在运行本项目的电脑上打开项目目录，执行 "
+                "`Get-Content .tmp\\owner-password.txt`（Windows）或 "
+                "`cat .tmp/owner-password.txt`（macOS/Linux）读取本机口令。"
+                "每份安装的口令不同，不会上传到 GitHub。")
     with st.form("owner_login"):
         password = st.text_input("管理员口令", type="password")
         submit = st.form_submit_button("进入工作台", type="primary")
     if submit:
         if hmac.compare_digest(password, owner_password):
             st.session_state["owner_authenticated"] = True
-            setup_flag.write_text("completed", encoding="utf-8")
             st.rerun()
         else:
             st.error("口令错误")

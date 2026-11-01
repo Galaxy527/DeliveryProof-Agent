@@ -82,7 +82,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m streamlit run app\ui\streamlit_app.py --server.port 8501
 ```
 
-浏览器打开 [http://127.0.0.1:8501](http://127.0.0.1:8501)。本机第一次使用时，点击页面上的「显示本机初始口令」，保存口令后登录。程序默认只监听 `127.0.0.1`；配送和收货入口中的本机链接仅用于本机流程验证。真实多设备协作需要 HTTPS 部署、可访问的域名以及服务器管理员口令。
+浏览器打开 [http://127.0.0.1:8501](http://127.0.0.1:8501)。每份安装首次启动时会在项目内生成自己的 `.tmp/owner-password.txt`；在运行服务的电脑上用 `Get-Content .tmp\owner-password.txt`（Windows）或 `cat .tmp/owner-password.txt`（macOS/Linux）读取，再登录供应商工作台。这个文件被 `.gitignore` 排除，仓库不含统一演示口令。公网部署时应在私有环境变量或 `.env` 中设置独立的 `DELIVERYPROOF_ADMIN_PASSWORD`，不要把口令写进仓库或展示在登录页。程序默认只监听 `127.0.0.1`；配送和收货入口中的本机链接仅用于本机流程验证。真实多设备协作需要 HTTPS 部署、可访问的域名以及服务器管理员口令。
 
 要让到期检查在无人打开网页时继续运行，请在第二个终端启动：
 
