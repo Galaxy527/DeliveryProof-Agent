@@ -39,10 +39,15 @@ def test_role_scope_split_delivery_and_receipt_close_independently(tmp_path):
     first = service.run_agent("SO-001")
     assert {i["code"] for i in first["issues"]} == {"MISSING_SIGNATURE"}
     service.record_receipt(receiver, "DN-001", Decimal("95"), condition="accepted")
+    assert {i["code"] for i in service.run_agent("SO-001")["issues"]} == {"MISSING_SIGNATURE"}
+    service.review_receipt("SO-001", "DN-001", "signed.pdf", b"sample signed document",
+                           note="已对照原始签收单与收货数量")
     assert service.run_agent("SO-001")["status"] == "verified"
     service.record_delivery(driver, "DN-002", Decimal("5"))
     assert {i["code"] for i in service.run_agent("SO-001")["issues"]} == {"MISSING_SIGNATURE"}
     service.record_receipt(receiver, "DN-002", Decimal("5"), condition="accepted")
+    service.review_receipt("SO-001", "DN-002", "signed-2.pdf", b"second signed document",
+                           note="已对照第二张原始签收单")
     assert service.run_agent("SO-001")["status"] == "verified"
     assert all(task.status == "resolved" for task in service.manager.get_tasks("SO-001"))
     service.close()
@@ -81,7 +86,7 @@ def test_receiver_cannot_confirm_other_order_or_overstate_quantity(tmp_path):
     service.close()
 
 
-def test_refusal_remains_open_and_resolved_reminder_is_canceled(tmp_path):
+def test_refusal_remains_open_until_proof_review(tmp_path):
     service, tokens = case(tmp_path)
     arrived = datetime.now(timezone.utc)
     service.record_delivery(tokens["driver"], "DN-001", Decimal("100"), now=arrived)
@@ -91,11 +96,33 @@ def test_refusal_remains_open_and_resolved_reminder_is_canceled(tmp_path):
     service.record_receipt(tokens["receiver"], "DN-001", Decimal("0"),
                            condition="refused", note="包装严重破损", now=arrived + timedelta(hours=26))
     issues = {i["code"] for i in service.run_agent("SO-001")["issues"]}
-    assert "MISSING_SIGNATURE" not in issues
+    assert "MISSING_SIGNATURE" in issues
     assert any(code.startswith("RECEIPT_EXCEPTION") for code in issues)
     assert any(code.startswith("ACCEPTED_QTY_MISMATCH") for code in issues)
     after = service.notifications("SO-001")
-    assert any(n["status"] == "canceled" for n in after)
+    assert any(n["status"] == "queued" for n in after)
+    service.close()
+
+
+def test_business_resolution_keeps_original_rule_finding_and_cancels_reminder(tmp_path):
+    service, tokens = case(tmp_path)
+    service.record_delivery(tokens["driver"], "DN-001", Decimal("90"))
+    service.record_receipt(tokens["receiver"], "DN-001", Decimal("85"),
+                           condition="partial", note="现场只收到 85 袋")
+    result = service.run_agent("SO-001")
+    mismatch = next(i for i in result["issues"] if i["code"].startswith("ACCEPTED_QTY_MISMATCH"))
+    service.resolve_issue("SO-001", mismatch["issue_id"],
+                          "双方核对后确认五袋退回仓库，附现场退货记录", "return.pdf", b"return proof")
+    assert any(r["issue_id"] == mismatch["issue_id"] for r in service.resolutions("SO-001"))
+    assert mismatch["issue_id"] in {i["issue_id"] for i in service.run_agent("SO-001")["issues"]}
+    assert any(n["status"] == "canceled" for n in service.notifications("SO-001")
+               if n["role"] == "driver" and "待处理" in n["subject"])
+    evidence = service.resolutions("SO-001")[0]["evidence_path"]
+    (tmp_path / evidence).write_bytes(b"tampered")
+    assert service.resolutions("SO-001") == []
+    service.run_agent("SO-001")
+    assert any(n["status"] == "queued" for n in service.notifications("SO-001")
+               if n["role"] == "driver" and "待处理" in n["subject"])
     service.close()
 
 
@@ -143,4 +170,15 @@ def test_phone_only_invite_waits_for_manual_forwarding(tmp_path):
     assert len(notices) == 2
     assert all(n["channel"] == "manual" and n["status"] == "manual" for n in notices)
     assert service.dispatch_queued() == 0
+    service.close()
+
+
+def test_delivery_original_amount_and_attachment_are_auditable(tmp_path):
+    service, tokens = case(tmp_path)
+    service.record_delivery(tokens["driver"], "DN-PRICE", Decimal("10"),
+                            declared_amount=Decimal("280"),
+                            evidence=("delivery.pdf", b"original delivery document"))
+    assert any(i["code"] == "AMOUNT_MISMATCH" for i in service.run_agent("SO-001")["issues"])
+    files = service.evidence_files("SO-001")
+    assert len(files) == 1 and files[0]["path"].read_bytes() == b"original delivery document"
     service.close()

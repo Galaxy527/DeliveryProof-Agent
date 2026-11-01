@@ -51,14 +51,16 @@ def validate_order(batch: Batch, order_id: str, *, as_of: date | None = None) ->
             add(delivery.delivery_id, "AMOUNT_MISMATCH",
                 f"申报金额 {delivery.declared_amount}，明细计算金额 {amount} {order.currency}",
                 [delivery.source], "更正送货单金额并说明原因")
-        evidence = [c for c in confirmations[delivery.delivery_id] if c.evidence_ref]
+        reports = confirmations[delivery.delivery_id]
+        evidence = [c for c in reports if c.evidence_ref]
         if not evidence:
             add(delivery.delivery_id, "MISSING_SIGNATURE", "缺少经人工审核的客户签收凭证",
                 [delivery.source] + [c.source for c in confirmations[delivery.delivery_id]],
                 "上传客户确认文件并完成人工审核")
-        else:
+        effective_reports = evidence or reports
+        if effective_reports:
             accepted = Counter()
-            for confirmation in evidence:
+            for confirmation in effective_reports:
                 if confirmation.condition in {"partial", "damaged", "refused"}:
                     condition_label = {"partial": "部分接收", "damaged": "有损坏",
                                        "refused": "拒收"}[confirmation.condition]
@@ -72,7 +74,7 @@ def validate_order(batch: Batch, order_id: str, *, as_of: date | None = None) ->
                 if accepted[sku] != qty:
                     add(delivery.delivery_id, f"ACCEPTED_QTY_MISMATCH:{sku}",
                         f"{sku}：送达 {qty}，客户确认 {accepted[sku]}",
-                        [delivery.source] + [c.source for c in evidence],
+                        [delivery.source] + [c.source for c in effective_reports],
                         "联系配送方与收货人核实差异；保留双方原始记录，并按事实补送、退货或更正责任方单据")
     for sku, item in order_items.items():
         if delivered_total[sku] != item.quantity:

@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import base64
-import json
 import os
 import secrets
 import smtplib
@@ -78,9 +77,17 @@ class CollaborationService:
                 delivery_id TEXT PRIMARY KEY, order_id TEXT NOT NULL,
                 accepted_quantity TEXT NOT NULL, condition TEXT NOT NULL,
                 note TEXT NOT NULL, actor TEXT NOT NULL, submitted_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS case_delivery_files (
+                delivery_id TEXT PRIMARY KEY, order_id TEXT NOT NULL, file_path TEXT NOT NULL,
+                file_sha256 TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS case_issue_epochs (
                 issue_id TEXT PRIMARY KEY, order_id TEXT NOT NULL,
                 epoch INTEGER NOT NULL, active INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS case_resolutions (
+                issue_id TEXT PRIMARY KEY, order_id TEXT NOT NULL,
+                explanation TEXT NOT NULL, evidence_path TEXT NOT NULL,
+                evidence_sha256 TEXT NOT NULL, approved_by TEXT NOT NULL,
+                approved_at TEXT NOT NULL);
         """)
 
     def close(self) -> None:
@@ -179,7 +186,9 @@ class CollaborationService:
         return [d for d in self.manager.get_batch().deliveries if d.order_id == order_id]
 
     def record_delivery(self, token: str, delivery_id: str, quantity: Decimal,
-                        *, now: datetime | None = None) -> None:
+                        *, declared_amount: Decimal | None = None,
+                        evidence: tuple[str, bytes] | None = None,
+                        now: datetime | None = None) -> None:
         actor = self.participant(token)
         if actor["role"] != "driver":
             raise PermissionError("只有该订单的配送人员可以登记送货")
@@ -190,6 +199,8 @@ class CollaborationService:
             raise ValueError("请输入有效的原始送货单号")
         if quantity <= 0:
             raise ValueError("实送数量必须大于零")
+        if declared_amount is not None and declared_amount < 0:
+            raise ValueError("送货单金额不能小于零")
         if any(d.delivery_id == delivery_id for d in self.manager.get_batch().deliveries):
             raise ValueError("送货单号已被使用")
         item = order.items[0]
@@ -197,9 +208,22 @@ class CollaborationService:
                             customer=order.customer,
                             items=[{"sku": item.sku, "quantity": quantity,
                                     "unit_price": item.unit_price}],
-                            declared_amount=quantity * item.unit_price,
+                            declared_amount=declared_amount if declared_amount is not None else quantity * item.unit_price,
                             source=f"portal/deliveries/{delivery_id}.json")
+        if evidence:
+            filename, content = evidence
+            if not content or len(content) > 12 * 1024 * 1024 or Path(filename).suffix.lower() not in {
+                    ".pdf", ".png", ".jpg", ".jpeg", ".webp"}:
+                raise ValueError("送货单附件须为 12 MB 以内的 PDF 或图片")
         self.manager.submit_evidence(delivery=delivery)
+        if evidence:
+            folder = self.root / "uploads"
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"delivery-{secrets.token_hex(12)}-{Path(filename).name}"
+            path.write_bytes(content)
+            self.db.execute("INSERT INTO case_delivery_files VALUES(?,?,?,?)",
+                            (delivery_id, order.order_id, path.relative_to(self.root).as_posix(),
+                             hashlib.sha256(content).hexdigest()))
         timestamp = (now or utc_now()).isoformat()
         self.db.execute("INSERT INTO delivery_arrivals VALUES(?,?,?)",
                         (delivery_id, order.order_id, timestamp))
@@ -236,21 +260,13 @@ class CollaborationService:
                     ".pdf", ".png", ".jpg", ".jpeg", ".webp"}:
                 raise ValueError("签收附件须为 12 MB 以内的 PDF 或图片")
         timestamp = now or utc_now()
-        payload = {"delivery_id": delivery_id, "accepted": str(accepted),
-                   "condition": condition, "note": note[:1000], "recipient": actor["name"],
-                   "submitted_at": timestamp.isoformat(),
-                   "basis": "指定收货人通过专属链接提交；仅以链接验证访问权限"}
         folder = self.root / "uploads"
         folder.mkdir(parents=True, exist_ok=True)
         if evidence:
             filename, content = evidence
             evidence_path = folder / f"receipt-{secrets.token_hex(12)}-{Path(filename).name}"
             evidence_path.write_bytes(content)
-            payload["attachment_ref"] = evidence_path.relative_to(self.root).as_posix()
-        else:
-            evidence_path = folder / f"receipt-{secrets.token_hex(12)}.json"
-            evidence_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-        ref = evidence_path.relative_to(self.root).as_posix()
+        ref = evidence_path.relative_to(self.root).as_posix() if evidence else None
         confirmation_id = "CONF-" + secrets.token_hex(8)
         confirmation = Confirmation(
             confirmation_id=confirmation_id, delivery_id=delivery_id,
@@ -258,9 +274,6 @@ class CollaborationService:
             evidence_ref=ref, source=f"portal/confirmations/{confirmation_id}.json",
             condition=condition, note=note[:1000])
         self.manager.submit_evidence(confirmation=confirmation)
-        self.manager.review_confirmation(
-            confirmation.source, evidence_path, actor=f"{actor['name']}（专属链接）", page=1,
-            note="收货人在线确认；仅以专属链接校验访问，未独立验证身份或手写签名")
         self.db.execute("INSERT INTO delivery_receipts VALUES(?,?,?,?,?,?,?)",
                         (delivery_id, actor["order_id"], str(accepted), condition, note[:1000],
                          actor["name"], timestamp.isoformat()))
@@ -268,6 +281,93 @@ class CollaborationService:
         self._event(actor["order_id"], "receipt_submitted", "receiver",
                     f"{delivery_id}：{CONDITIONS[condition]}，实收 {accepted}；{note[:300]}", timestamp)
         self.run_agent(actor["order_id"], now=now)
+
+    def review_receipt(self, order_id: str, delivery_id: str, filename: str,
+                       content: bytes, *, note: str) -> None:
+        """Supplier records a separate review of the signed document."""
+        self.order(order_id)
+        if not note.strip() or len(content) == 0 or len(content) > 12 * 1024 * 1024:
+            raise ValueError("请填写审核依据，上传 12 MB 以内的凭证")
+        if Path(filename).suffix.lower() not in {".pdf", ".png", ".jpg", ".jpeg", ".webp"}:
+            raise ValueError("凭证须为 PDF 或图片")
+        docs = [d for d in self.manager.get_documents(order_id)
+                if d["kind"] == "confirmation" and d["active"] and
+                d["payload"]["delivery_id"] == delivery_id]
+        if len(docs) != 1:
+            raise ValueError("找不到唯一有效的收货反馈")
+        source = docs[0]["source"]
+        folder = self.root / "uploads"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"review-{secrets.token_hex(12)}-{Path(filename).name}"
+        path.write_bytes(content)
+        confirmation = Confirmation.model_validate(docs[0]["payload"])
+        replacement = confirmation.model_copy(update={"evidence_ref": path.relative_to(self.root).as_posix()})
+        self.manager.correct_document("confirmation", source, replacement,
+                                      actor="供应商负责人", reason="补充待审核签收凭证")
+        self.manager.review_confirmation(source, path, actor="供应商负责人", page=1,
+                                         note=note.strip())
+        self._event(order_id, "receipt_reviewed", "supplier",
+                    f"已审核送货单 {delivery_id} 的签收凭证：{note.strip()[:200]}")
+        self.run_agent(order_id)
+
+    def resolutions(self, order_id: str) -> list[dict]:
+        rows = self.db.execute("SELECT issue_id,explanation,evidence_path,evidence_sha256,approved_by,approved_at "
+                               "FROM case_resolutions WHERE order_id=?", (order_id,))
+        valid = []
+        for issue_id, explanation, ref, expected, actor, approved_at in rows:
+            path = (self.root / ref).resolve()
+            if (path.is_relative_to((self.root / "uploads").resolve()) and path.is_file() and
+                    hashlib.sha256(path.read_bytes()).hexdigest() == expected):
+                valid.append({"issue_id": issue_id, "explanation": explanation,
+                              "evidence_path": ref, "approved_by": actor, "approved_at": approved_at})
+        return valid
+
+    def evidence_files(self, order_id: str) -> list[dict]:
+        """Files visible only in the authenticated supplier view."""
+        self.order(order_id)
+        candidates = []
+        order = self.order(order_id)
+        candidates.append(("原始订单", order.source))
+        candidates.extend((f"送货单 {delivery_id}", ref) for delivery_id, ref in self.db.execute(
+            "SELECT delivery_id,file_path FROM case_delivery_files WHERE order_id=?", (order_id,)))
+        candidates.extend((f"收货凭证 {d['document_id']}", d["payload"].get("evidence_ref"))
+                          for d in self.manager.get_documents(order_id)
+                          if d["kind"] == "confirmation" and d["active"])
+        candidates.extend((f"差异处理 {r['issue_id']}", r["evidence_path"])
+                          for r in self.resolutions(order_id))
+        found = []
+        upload_root = (self.root / "uploads").resolve()
+        for label, ref in candidates:
+            if not ref:
+                continue
+            path = (self.root / ref).resolve()
+            if path.is_relative_to(upload_root) and path.is_file():
+                found.append({"label": label, "path": path, "filename": path.name})
+        return found
+
+    def resolve_issue(self, order_id: str, issue_id: str, explanation: str,
+                      filename: str, content: bytes) -> None:
+        """Close a business exception with evidence; retain the rule finding."""
+        self.order(order_id)
+        issues = {i.issue_id: i for i in self.manager.verify(None, order_id).issues}
+        issue = issues.get(issue_id)
+        if issue is None or not issue.code.startswith(("RECEIPT_EXCEPTION", "ACCEPTED_QTY_MISMATCH",
+                                                        "ORDER_QTY_MISMATCH")):
+            raise ValueError("只能处理当前数量或收货差异；缺凭证或缺送货记录须先补齐")
+        if len(explanation.strip()) < 10 or not content or len(content) > 12 * 1024 * 1024:
+            raise ValueError("处理说明至少 10 字，并上传 12 MB 以内的处理依据")
+        if Path(filename).suffix.lower() not in {".pdf", ".png", ".jpg", ".jpeg", ".webp"}:
+            raise ValueError("处理依据须为 PDF 或图片")
+        folder = self.root / "uploads"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"resolution-{secrets.token_hex(12)}-{Path(filename).name}"
+        path.write_bytes(content)
+        self.db.execute("INSERT OR REPLACE INTO case_resolutions VALUES(?,?,?,?,?,?,?)",
+                        (issue_id, order_id, explanation.strip(), path.relative_to(self.root).as_posix(),
+                         hashlib.sha256(content).hexdigest(), "供应商负责人", utc_now().isoformat()))
+        self.db.commit()
+        self._event(order_id, "issue_resolved", "supplier", f"{issue_id}：{explanation.strip()[:200]}")
+        self.run_agent(order_id)
 
     def receipts(self, order_id: str) -> list[dict]:
         return [dict(zip(("delivery_id", "accepted_quantity", "condition", "note",
@@ -335,9 +435,14 @@ class CollaborationService:
         business_date = now.astimezone(BUSINESS_TZ).date()
         result = self.manager.verify(None, order_id, as_of=business_date)
         issue_codes = {issue.code for issue in result.issues}
-        active_issue_ids = {issue.issue_id for issue in result.issues}
+        closed_issue_ids = {row["issue_id"] for row in self.resolutions(order_id)}
+        active_issue_ids = {issue.issue_id for issue in result.issues
+                            if issue.issue_id not in closed_issue_ids}
+        open_issue_ids = active_issue_ids
         epochs = {}
         for issue in result.issues:
+            if issue.issue_id in closed_issue_ids:
+                continue
             row = self.db.execute("SELECT epoch,active FROM case_issue_epochs WHERE issue_id=?",
                                   (issue.issue_id,)).fetchone()
             if row is None:
@@ -360,17 +465,24 @@ class CollaborationService:
                 (order_id,)).fetchall():
             if (":invite:" not in event_key and
                     not any(event_key.startswith(issue_id + f":cycle:{epochs[issue_id]}")
-                            for issue_id in active_issue_ids)):
+                            for issue_id in open_issue_ids)):
                 self.db.execute("UPDATE case_notifications SET status='canceled' WHERE id=?",
                                 (notification_id,))
         self.db.commit()
         for issue in result.issues:
+            if issue.issue_id in closed_issue_ids:
+                continue
             role = None
             if issue.code == "MISSING_SIGNATURE" and issue.delivery_id:
-                row = self.db.execute("SELECT arrived_at FROM delivery_arrivals WHERE delivery_id=?",
-                                      (issue.delivery_id,)).fetchone()
-                if row and now - datetime.fromisoformat(row[0]) >= timedelta(hours=24):
-                    role = "receiver"
+                receipt = self.db.execute("SELECT 1 FROM delivery_receipts WHERE delivery_id=?",
+                                          (issue.delivery_id,)).fetchone()
+                if receipt:
+                    role = "supplier"
+                else:
+                    row = self.db.execute("SELECT arrived_at FROM delivery_arrivals WHERE delivery_id=?",
+                                          (issue.delivery_id,)).fetchone()
+                    if row and now - datetime.fromisoformat(row[0]) >= timedelta(hours=24):
+                        role = "receiver"
             elif issue.code == "MISSING_DELIVERY" or issue.code.startswith("ORDER_QTY_MISMATCH"):
                 if order.delivery_due_date and business_date > order.delivery_due_date:
                     role = "driver"

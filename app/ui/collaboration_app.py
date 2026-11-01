@@ -38,23 +38,32 @@ def summary(order_id: str) -> None:
     order = service.order(order_id)
     history = service.manager.get_history(order_id)
     result = history[-1]["result"] if history else service.run_agent(order_id)
+    resolved = {r["issue_id"]: r for r in service.resolutions(order_id)}
+    open_issues = [i for i in result["issues"] if i["issue_id"] not in resolved]
     delivered = service.deliveries(order_id)
     sent_qty = sum((i.quantity for d in delivered for i in d.items), Decimal(0))
     a, b, c = st.columns(3)
     a.metric("订单", order_id)
     b.metric("已登记送货", f"{sent_qty} / {order.items[0].quantity} {order.items[0].sku}")
-    c.metric("待处理问题", len(result["issues"]))
+    c.metric("待处理问题", len(open_issues))
     if order.delivery_due_date:
         st.caption(f"约定交付日期：{order.delivery_due_date} · "
                    + ("允许分批送货" if order.allow_split_delivery else "一次交付"))
     if not result["issues"]:
-        st.success("当前订单的送货与收货资料已核对完成。")
+        st.success("当前订单资料已核对完成。")
+    elif not open_issues:
+        st.info("业务差异均已记录处理依据；原始差异保留在核验记录中。")
     else:
-        for issue in result["issues"]:
+        for issue in open_issues:
             with st.container(border=True):
                 st.markdown(f"**{issue['detail']}**")
                 st.caption(f"处理建议：{issue['action']}")
                 st.caption("依据：" + "、".join(issue["sources"]))
+    if resolved:
+        with st.expander(f"查看已处理差异（{len(resolved)}）"):
+            for issue in result["issues"]:
+                if issue["issue_id"] in resolved:
+                    st.write(f"{issue['detail']} · 处理记录：{resolved[issue['issue_id']]['explanation']}")
 
 
 def owner_page() -> None:
@@ -169,6 +178,54 @@ def owner_page() -> None:
             st.rerun()
         if st.session_state.get("agent_notice"):
             st.success(st.session_state.pop("agent_notice"))
+        with st.expander("查看并下载原始附件"):
+            files = service.evidence_files(selected)
+            if not files:
+                st.caption("这笔订单还没有上传附件。")
+            for index, file in enumerate(files):
+                st.download_button(file["label"], data=file["path"].read_bytes(),
+                                   file_name=file["filename"], key=f"evidence_{selected}_{index}")
+        st.markdown("#### 凭证审核与差异处理")
+        st.caption("在线收货反馈只表示有人通过专属链接填写；签收凭证由供应商另行核对。")
+        reviews = {c.source for c in service.manager.get_batch(reviewed_only=True).confirmations
+                   if c.evidence_ref}
+        for doc in service.manager.get_documents(selected):
+            if doc["kind"] != "confirmation" or not doc["active"] or doc["source"] in reviews:
+                continue
+            delivery_id = doc["payload"]["delivery_id"]
+            with st.expander(f"审核 {delivery_id} 的收货凭证"):
+                with st.form(f"review_{doc['source']}"):
+                    proof = st.file_uploader("签收照片或 PDF *", type=["pdf", "png", "jpg", "jpeg", "webp"])
+                    note = st.text_area("审核依据 *", placeholder="例如：已对照原始签收单及收货数量")
+                    if st.form_submit_button("确认审核凭证"):
+                        try:
+                            if not proof:
+                                raise ValueError("请先上传签收凭证")
+                            service.review_receipt(selected, delivery_id, proof.name, proof.getvalue(), note=note)
+                            st.success("凭证已审核，系统已重新核对。")
+                            st.rerun()
+                        except Exception as error:
+                            st.error(str(error))
+        latest = service.manager.get_history(selected)[-1]["result"]
+        closed = {r["issue_id"] for r in service.resolutions(selected)}
+        for issue in latest["issues"]:
+            if issue["issue_id"] in closed or issue["code"] == "MISSING_SIGNATURE":
+                continue
+            with st.expander(f"处理差异：{issue['detail']}"):
+                with st.form(f"resolve_{issue['issue_id']}"):
+                    explanation = st.text_area("处理结论 *", key=f"explain_{issue['issue_id']}")
+                    support = st.file_uploader("处理依据图片或 PDF *", type=["pdf", "png", "jpg", "jpeg", "webp"],
+                                               key=f"support_{issue['issue_id']}")
+                    if st.form_submit_button("记录处理并关闭跟进"):
+                        try:
+                            if not support:
+                                raise ValueError("请上传处理依据")
+                            service.resolve_issue(selected, issue["issue_id"], explanation,
+                                                  support.name, support.getvalue())
+                            st.success("处理依据已保存；原始差异仍可追溯。")
+                            st.rerun()
+                        except Exception as error:
+                            st.error(str(error))
         st.markdown("#### 联系人与专属入口")
         for participant in service.participants(selected):
             role = participant["role"]
@@ -222,12 +279,17 @@ def participant_page(token: str) -> None:
         with st.form("driver_delivery"):
             delivery_id = st.text_input("送货单号 *")
             qty = st.number_input("本次实送数量 *", min_value=0.01, value=None)
+            declared_amount = st.number_input("送货单总金额（元）*", min_value=0.0, value=None)
+            delivery_proof = st.file_uploader("原始送货单照片或 PDF（可选）",
+                                              type=["pdf", "png", "jpg", "jpeg", "webp"])
             submit = st.form_submit_button("提交送货记录", type="primary")
         if submit:
             try:
-                if qty is None:
-                    raise ValueError("请填写实送数量")
-                service.record_delivery(token, delivery_id.strip(), Decimal(str(qty)))
+                if qty is None or declared_amount is None:
+                    raise ValueError("请填写实送数量和送货单原始金额")
+                service.record_delivery(token, delivery_id.strip(), Decimal(str(qty)),
+                    declared_amount=Decimal(str(declared_amount)),
+                    evidence=(delivery_proof.name, delivery_proof.getvalue()) if delivery_proof else None)
                 service.dispatch_queued()
                 st.success("送货记录已提交。系统已重新核对，并等待收货人确认。")
             except Exception as error:

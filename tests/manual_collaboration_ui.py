@@ -49,6 +49,7 @@ assert not driver.exception and not driver.error
 assert not any(x.label == "原始订单号 *" for x in driver.text_input)
 next(x for x in driver.text_input if x.label == "送货单号 *").set_value("DN-UI-001")
 next(x for x in driver.number_input if x.label == "本次实送数量 *").set_value(100.0)
+next(x for x in driver.number_input if x.label == "送货单总金额（元）*").set_value(3000.0)
 next(x for x in driver.button if x.label == "提交送货记录").click().run()
 assert not driver.exception and not driver.error
 
@@ -62,6 +63,9 @@ next(x for x in receiver.button if x.label == "提交收货确认").click().run(
 assert not receiver.exception and not receiver.error
 
 service = CollaborationService(database)
+assert service.manager.get_history("SO-UI-001")[-1]["result"]["status"] == "needs_evidence"
+service.review_receipt("SO-UI-001", "DN-UI-001", "signed.pdf", b"signed sample",
+                       note="已对照原始签收记录")
 assert service.manager.get_history("SO-UI-001")[-1]["result"]["status"] == "verified"
 service.close()
 next(x for x in app.button if x.label == "立即运行协调 Agent 并检查到期任务").click().run()
