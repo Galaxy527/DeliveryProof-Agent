@@ -1,0 +1,11 @@
+order_id,customer,currency,source,sku,quantity,unit_price
+ORD-001,张先生,CNY,orders/ORD-001.json,水泥,100,30
+ORD-002,张先生,CNY,orders/ORD-002.json,水泥,100,30
+ORD-003,张先生,CNY,orders/ORD-003.json,水泥,100,30
+ORD-004,张先生,CNY,orders/ORD-004.json,水泥,100,30
+ORD-005,张先生,CNY,orders/ORD-005.json,水泥,100,30
+ORD-006,张先生,CNY,orders/ORD-006.json,水泥,100,30
+ORD-007,张先生,CNY,orders/ORD-007.json,水泥,100,30
+ORD-008,张先生,CNY,orders/ORD-008.json,水泥,100,30
+ORD-009,张先生,CNY,orders/ORD-009.json,水泥,100,30
+ORD-010,张先生,CNY,orders/ORD-010.json,水泥,100,30

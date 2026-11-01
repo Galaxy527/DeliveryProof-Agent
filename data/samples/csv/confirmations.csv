@@ -1,0 +1,12 @@
+confirmation_id,delivery_id,evidence_ref,source,sku,quantity
+CONF-002,DEL-002,,confirmations/CONF-002.json,水泥,100
+CONF-003,DEL-003,signed/DEL-003.pdf,confirmations/CONF-003.json,水泥,95
+CONF-004,DEL-004,signed/DEL-004.pdf,confirmations/CONF-004.json,水泥,100
+CONF-005,DEL-005,signed/DEL-005.pdf,confirmations/CONF-005.json,水泥,100
+CONF-006,DEL-006,signed/DEL-006.pdf,confirmations/CONF-006.json,水泥,90
+CONF-007,DEL-007,signed/DEL-007.pdf,confirmations/CONF-007.json,水泥,100
+CONF-008,DEL-008,signed/DEL-008.pdf,confirmations/CONF-008.json,水泥,60
+CONF-009,DEL-009,signed/DEL-009.pdf,confirmations/CONF-009.json,水泥,60
+CONF-010,DEL-010,signed/DEL-010.pdf,confirmations/CONF-010.json,水泥,105
+CONF-008-B,DEL-008-B,signed/DEL-008-B.pdf,confirmations/CONF-008-B.json,水泥,40
+CONF-009-B,DEL-009,signed/DEL-009-B.pdf,confirmations/CONF-009-B.json,水泥,40

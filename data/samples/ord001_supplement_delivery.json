@@ -1,0 +1,8 @@
+{
+  "delivery_id": "DEL-001-B",
+  "order_id": "ORD-001",
+  "customer": "张先生",
+  "items": [{"sku": "水泥", "quantity": "5", "unit_price": "30"}],
+  "declared_amount": "150",
+  "source": "deliveries/DEL-001-B.json"
+}

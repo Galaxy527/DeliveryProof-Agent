@@ -1,0 +1,13 @@
+delivery_id,order_id,customer,declared_amount,source,sku,quantity,unit_price
+DEL-001,ORD-001,张先生,2850,deliveries/DEL-001.json,水泥,95,30
+DEL-002,ORD-002,张先生,3000,deliveries/DEL-002.json,水泥,100,30
+DEL-003,ORD-003,张先生,2850,deliveries/DEL-003.json,水泥,95,30
+DEL-004,ORD-004,张先生,3100,deliveries/DEL-004.json,水泥,100,31
+DEL-005,ORD-005,张先生,2999,deliveries/DEL-005.json,水泥,100,30
+DEL-006,ORD-006,张先生,3000,deliveries/DEL-006.json,水泥,100,30
+DEL-007,ORD-007,张先生,3000,deliveries/DEL-007.json,水泥,100,30
+DEL-008,ORD-008,张先生,1800,deliveries/DEL-008.json,水泥,60,30
+DEL-009,ORD-009,张先生,3000,deliveries/DEL-009.json,水泥,100,30
+DEL-010,ORD-010,张先生,3150,deliveries/DEL-010.json,水泥,105,30
+DEL-007,ORD-007,张先生,3000,deliveries/DEL-007-copy.json,水泥,100,30
+DEL-008-B,ORD-008,张先生,1200,deliveries/DEL-008-B.json,水泥,40,30

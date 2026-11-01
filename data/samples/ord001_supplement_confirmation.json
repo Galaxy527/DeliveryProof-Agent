@@ -1,0 +1,7 @@
+{
+  "confirmation_id": "CONF-001-B",
+  "delivery_id": "DEL-001-B",
+  "items": [{"sku": "水泥", "quantity": "5"}],
+  "evidence_ref": "signed/DEL-001-B.pdf",
+  "source": "confirmations/CONF-001-B.json"
+}

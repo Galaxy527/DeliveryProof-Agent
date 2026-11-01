@@ -1,0 +1,438 @@
+{
+  "orders": [
+    {
+      "order_id": "ORD-001",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-001.json"
+    },
+    {
+      "order_id": "ORD-002",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-002.json"
+    },
+    {
+      "order_id": "ORD-003",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-003.json"
+    },
+    {
+      "order_id": "ORD-004",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-004.json"
+    },
+    {
+      "order_id": "ORD-005",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-005.json"
+    },
+    {
+      "order_id": "ORD-006",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-006.json"
+    },
+    {
+      "order_id": "ORD-007",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-007.json"
+    },
+    {
+      "order_id": "ORD-008",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-008.json"
+    },
+    {
+      "order_id": "ORD-009",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-009.json"
+    },
+    {
+      "order_id": "ORD-010",
+      "customer": "张先生",
+      "currency": "CNY",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "source": "orders/ORD-010.json"
+    }
+  ],
+  "deliveries": [
+    {
+      "delivery_id": "DEL-001",
+      "order_id": "ORD-001",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "95",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "2850",
+      "source": "deliveries/DEL-001.json"
+    },
+    {
+      "delivery_id": "DEL-002",
+      "order_id": "ORD-002",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "3000",
+      "source": "deliveries/DEL-002.json"
+    },
+    {
+      "delivery_id": "DEL-003",
+      "order_id": "ORD-003",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "95",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "2850",
+      "source": "deliveries/DEL-003.json"
+    },
+    {
+      "delivery_id": "DEL-004",
+      "order_id": "ORD-004",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "31"
+        }
+      ],
+      "declared_amount": "3100",
+      "source": "deliveries/DEL-004.json"
+    },
+    {
+      "delivery_id": "DEL-005",
+      "order_id": "ORD-005",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "2999",
+      "source": "deliveries/DEL-005.json"
+    },
+    {
+      "delivery_id": "DEL-006",
+      "order_id": "ORD-006",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "3000",
+      "source": "deliveries/DEL-006.json"
+    },
+    {
+      "delivery_id": "DEL-007",
+      "order_id": "ORD-007",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "3000",
+      "source": "deliveries/DEL-007.json"
+    },
+    {
+      "delivery_id": "DEL-008",
+      "order_id": "ORD-008",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "60",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "1800",
+      "source": "deliveries/DEL-008.json"
+    },
+    {
+      "delivery_id": "DEL-009",
+      "order_id": "ORD-009",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "3000",
+      "source": "deliveries/DEL-009.json"
+    },
+    {
+      "delivery_id": "DEL-010",
+      "order_id": "ORD-010",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "105",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "3150",
+      "source": "deliveries/DEL-010.json"
+    },
+    {
+      "delivery_id": "DEL-007",
+      "order_id": "ORD-007",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "3000",
+      "source": "deliveries/DEL-007-copy.json"
+    },
+    {
+      "delivery_id": "DEL-008-B",
+      "order_id": "ORD-008",
+      "customer": "张先生",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "40",
+          "unit_price": "30"
+        }
+      ],
+      "declared_amount": "1200",
+      "source": "deliveries/DEL-008-B.json"
+    }
+  ],
+  "confirmations": [
+    {
+      "confirmation_id": "CONF-002",
+      "delivery_id": "DEL-002",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100"
+        }
+      ],
+      "evidence_ref": null,
+      "source": "confirmations/CONF-002.json"
+    },
+    {
+      "confirmation_id": "CONF-003",
+      "delivery_id": "DEL-003",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "95"
+        }
+      ],
+      "evidence_ref": "signed/DEL-003.pdf",
+      "source": "confirmations/CONF-003.json"
+    },
+    {
+      "confirmation_id": "CONF-004",
+      "delivery_id": "DEL-004",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100"
+        }
+      ],
+      "evidence_ref": "signed/DEL-004.pdf",
+      "source": "confirmations/CONF-004.json"
+    },
+    {
+      "confirmation_id": "CONF-005",
+      "delivery_id": "DEL-005",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100"
+        }
+      ],
+      "evidence_ref": "signed/DEL-005.pdf",
+      "source": "confirmations/CONF-005.json"
+    },
+    {
+      "confirmation_id": "CONF-006",
+      "delivery_id": "DEL-006",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "90"
+        }
+      ],
+      "evidence_ref": "signed/DEL-006.pdf",
+      "source": "confirmations/CONF-006.json"
+    },
+    {
+      "confirmation_id": "CONF-007",
+      "delivery_id": "DEL-007",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "100"
+        }
+      ],
+      "evidence_ref": "signed/DEL-007.pdf",
+      "source": "confirmations/CONF-007.json"
+    },
+    {
+      "confirmation_id": "CONF-008",
+      "delivery_id": "DEL-008",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "60"
+        }
+      ],
+      "evidence_ref": "signed/DEL-008.pdf",
+      "source": "confirmations/CONF-008.json"
+    },
+    {
+      "confirmation_id": "CONF-009",
+      "delivery_id": "DEL-009",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "60"
+        }
+      ],
+      "evidence_ref": "signed/DEL-009.pdf",
+      "source": "confirmations/CONF-009.json"
+    },
+    {
+      "confirmation_id": "CONF-010",
+      "delivery_id": "DEL-010",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "105"
+        }
+      ],
+      "evidence_ref": "signed/DEL-010.pdf",
+      "source": "confirmations/CONF-010.json"
+    },
+    {
+      "confirmation_id": "CONF-008-B",
+      "delivery_id": "DEL-008-B",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "40"
+        }
+      ],
+      "evidence_ref": "signed/DEL-008-B.pdf",
+      "source": "confirmations/CONF-008-B.json"
+    },
+    {
+      "confirmation_id": "CONF-009-B",
+      "delivery_id": "DEL-009",
+      "items": [
+        {
+          "sku": "水泥",
+          "quantity": "40"
+        }
+      ],
+      "evidence_ref": "signed/DEL-009-B.pdf",
+      "source": "confirmations/CONF-009-B.json"
+    }
+  ]
+}

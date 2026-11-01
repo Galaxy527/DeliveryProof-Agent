@@ -1,0 +1,428 @@
+[
+  {
+    "order_id": "ORD-001",
+    "status": "needs_evidence",
+    "issues": [
+      {
+        "issue_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+        "order_id": "ORD-001",
+        "delivery_id": "DEL-001",
+        "code": "MISSING_SIGNATURE",
+        "detail": "No verifiable customer confirmation",
+        "sources": [
+          "deliveries/DEL-001.json"
+        ],
+        "action": "Obtain signed customer confirmation"
+      },
+      {
+        "issue_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-001",
+        "delivery_id": null,
+        "code": "ORDER_QTY_MISMATCH:CEMENT",
+        "detail": "CEMENT: ordered 100, delivered 95",
+        "sources": [
+          "deliveries/DEL-001.json",
+          "orders/ORD-001.json"
+        ],
+        "action": "Locate additional delivery or correct the order"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+        "issue_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+        "order_id": "ORD-001",
+        "status": "open",
+        "action": "Obtain signed customer confirmation",
+        "resolution": null
+      },
+      {
+        "task_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+        "issue_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-001",
+        "status": "open",
+        "action": "Locate additional delivery or correct the order",
+        "resolution": null
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-001: 1 deliveries"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-001:DEL-001:MISSING_SIGNATURE: No verifiable customer confirmation"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT: CEMENT: ordered 100, delivered 95"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-001:DEL-001:MISSING_SIGNATURE"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT"
+      },
+      {
+        "step": "archive_result",
+        "detail": "2 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-002",
+    "status": "needs_evidence",
+    "issues": [
+      {
+        "issue_id": "ORD-002:DEL-002:MISSING_SIGNATURE",
+        "order_id": "ORD-002",
+        "delivery_id": "DEL-002",
+        "code": "MISSING_SIGNATURE",
+        "detail": "No verifiable customer confirmation",
+        "sources": [
+          "confirmations/CONF-002.json",
+          "deliveries/DEL-002.json"
+        ],
+        "action": "Obtain signed customer confirmation"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "ORD-002:DEL-002:MISSING_SIGNATURE",
+        "issue_id": "ORD-002:DEL-002:MISSING_SIGNATURE",
+        "order_id": "ORD-002",
+        "status": "open",
+        "action": "Obtain signed customer confirmation",
+        "resolution": null
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-002: 1 deliveries"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-002:DEL-002:MISSING_SIGNATURE: No verifiable customer confirmation"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-002:DEL-002:MISSING_SIGNATURE"
+      },
+      {
+        "step": "archive_result",
+        "detail": "1 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-003",
+    "status": "needs_evidence",
+    "issues": [
+      {
+        "issue_id": "ORD-003:order:ORDER_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-003",
+        "delivery_id": null,
+        "code": "ORDER_QTY_MISMATCH:CEMENT",
+        "detail": "CEMENT: ordered 100, delivered 95",
+        "sources": [
+          "deliveries/DEL-003.json",
+          "orders/ORD-003.json"
+        ],
+        "action": "Locate additional delivery or correct the order"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "ORD-003:order:ORDER_QTY_MISMATCH:CEMENT",
+        "issue_id": "ORD-003:order:ORDER_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-003",
+        "status": "open",
+        "action": "Locate additional delivery or correct the order",
+        "resolution": null
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-003: 1 deliveries"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-003:order:ORDER_QTY_MISMATCH:CEMENT: CEMENT: ordered 100, delivered 95"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-003:order:ORDER_QTY_MISMATCH:CEMENT"
+      },
+      {
+        "step": "archive_result",
+        "detail": "1 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-004",
+    "status": "needs_evidence",
+    "issues": [
+      {
+        "issue_id": "ORD-004:DEL-004:PRICE_MISMATCH:CEMENT",
+        "order_id": "ORD-004",
+        "delivery_id": "DEL-004",
+        "code": "PRICE_MISMATCH:CEMENT",
+        "detail": "CEMENT: order price 30, delivery price 31",
+        "sources": [
+          "deliveries/DEL-004.json",
+          "orders/ORD-004.json"
+        ],
+        "action": "Provide corrected price evidence"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "ORD-004:DEL-004:PRICE_MISMATCH:CEMENT",
+        "issue_id": "ORD-004:DEL-004:PRICE_MISMATCH:CEMENT",
+        "order_id": "ORD-004",
+        "status": "open",
+        "action": "Provide corrected price evidence",
+        "resolution": null
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-004: 1 deliveries"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-004:DEL-004:PRICE_MISMATCH:CEMENT: CEMENT: order price 30, delivery price 31"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-004:DEL-004:PRICE_MISMATCH:CEMENT"
+      },
+      {
+        "step": "archive_result",
+        "detail": "1 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-005",
+    "status": "needs_evidence",
+    "issues": [
+      {
+        "issue_id": "ORD-005:DEL-005:AMOUNT_MISMATCH",
+        "order_id": "ORD-005",
+        "delivery_id": "DEL-005",
+        "code": "AMOUNT_MISMATCH",
+        "detail": "Declared 2999, calculated 3000 CNY",
+        "sources": [
+          "deliveries/DEL-005.json"
+        ],
+        "action": "Provide corrected delivery amount"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "ORD-005:DEL-005:AMOUNT_MISMATCH",
+        "issue_id": "ORD-005:DEL-005:AMOUNT_MISMATCH",
+        "order_id": "ORD-005",
+        "status": "open",
+        "action": "Provide corrected delivery amount",
+        "resolution": null
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-005: 1 deliveries"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-005:DEL-005:AMOUNT_MISMATCH: Declared 2999, calculated 3000 CNY"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-005:DEL-005:AMOUNT_MISMATCH"
+      },
+      {
+        "step": "archive_result",
+        "detail": "1 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-006",
+    "status": "needs_evidence",
+    "issues": [
+      {
+        "issue_id": "ORD-006:DEL-006:ACCEPTED_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-006",
+        "delivery_id": "DEL-006",
+        "code": "ACCEPTED_QTY_MISMATCH:CEMENT",
+        "detail": "CEMENT: delivered 100, confirmed 90",
+        "sources": [
+          "confirmations/CONF-006.json",
+          "deliveries/DEL-006.json"
+        ],
+        "action": "Obtain corrected customer confirmation"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "ORD-006:DEL-006:ACCEPTED_QTY_MISMATCH:CEMENT",
+        "issue_id": "ORD-006:DEL-006:ACCEPTED_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-006",
+        "status": "open",
+        "action": "Obtain corrected customer confirmation",
+        "resolution": null
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-006: 1 deliveries"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-006:DEL-006:ACCEPTED_QTY_MISMATCH:CEMENT: CEMENT: delivered 100, confirmed 90"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-006:DEL-006:ACCEPTED_QTY_MISMATCH:CEMENT"
+      },
+      {
+        "step": "archive_result",
+        "detail": "1 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-007",
+    "status": "needs_evidence",
+    "issues": [
+      {
+        "issue_id": "ORD-007:DEL-007:DUPLICATE_DELIVERY",
+        "order_id": "ORD-007",
+        "delivery_id": "DEL-007",
+        "code": "DUPLICATE_DELIVERY",
+        "detail": "Duplicate delivery ID",
+        "sources": [
+          "deliveries/DEL-007-copy.json",
+          "deliveries/DEL-007.json"
+        ],
+        "action": "Review duplicate delivery documents"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "ORD-007:DEL-007:DUPLICATE_DELIVERY",
+        "issue_id": "ORD-007:DEL-007:DUPLICATE_DELIVERY",
+        "order_id": "ORD-007",
+        "status": "open",
+        "action": "Review duplicate delivery documents",
+        "resolution": null
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-007: 2 deliveries"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-007:DEL-007:DUPLICATE_DELIVERY: Duplicate delivery ID"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-007:DEL-007:DUPLICATE_DELIVERY"
+      },
+      {
+        "step": "archive_result",
+        "detail": "1 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-008",
+    "status": "verified",
+    "issues": [],
+    "tasks": [],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-008: 2 deliveries"
+      },
+      {
+        "step": "archive_result",
+        "detail": "0 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-009",
+    "status": "verified",
+    "issues": [],
+    "tasks": [],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-009: 1 deliveries"
+      },
+      {
+        "step": "archive_result",
+        "detail": "0 active issues"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-010",
+    "status": "needs_evidence",
+    "issues": [
+      {
+        "issue_id": "ORD-010:order:ORDER_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-010",
+        "delivery_id": null,
+        "code": "ORDER_QTY_MISMATCH:CEMENT",
+        "detail": "CEMENT: ordered 100, delivered 105",
+        "sources": [
+          "deliveries/DEL-010.json",
+          "orders/ORD-010.json"
+        ],
+        "action": "Locate additional delivery or correct the order"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "ORD-010:order:ORDER_QTY_MISMATCH:CEMENT",
+        "issue_id": "ORD-010:order:ORDER_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-010",
+        "status": "open",
+        "action": "Locate additional delivery or correct the order",
+        "resolution": null
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-010: 1 deliveries"
+      },
+      {
+        "step": "check_evidence",
+        "detail": "ORD-010:order:ORDER_QTY_MISMATCH:CEMENT: CEMENT: ordered 100, delivered 105"
+      },
+      {
+        "step": "create_evidence_task",
+        "detail": "ORD-010:order:ORDER_QTY_MISMATCH:CEMENT"
+      },
+      {
+        "step": "archive_result",
+        "detail": "1 active issues"
+      }
+    ]
+  }
+]

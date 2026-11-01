@@ -1,0 +1,37 @@
+{
+  "order_id": "ORD-001",
+  "status": "verified",
+  "issues": [],
+  "tasks": [
+    {
+      "task_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+      "issue_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+      "order_id": "ORD-001",
+      "status": "resolved",
+      "action": "Obtain signed customer confirmation",
+      "resolution": "Evidence reverified"
+    },
+    {
+      "task_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+      "issue_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+      "order_id": "ORD-001",
+      "status": "resolved",
+      "action": "Locate additional delivery or correct the order",
+      "resolution": "Evidence reverified"
+    }
+  ],
+  "log": [
+    {
+      "step": "match_documents",
+      "detail": "ORD-001: 2 deliveries"
+    },
+    {
+      "step": "resolve_evidence_task",
+      "detail": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT"
+    },
+    {
+      "step": "archive_result",
+      "detail": "0 active issues"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "order_id": "ORD-001",
+  "status": "needs_evidence",
+  "issues": [
+    {
+      "issue_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+      "order_id": "ORD-001",
+      "delivery_id": null,
+      "code": "ORDER_QTY_MISMATCH:CEMENT",
+      "detail": "CEMENT: ordered 100, delivered 95",
+      "sources": [
+        "deliveries/DEL-001.json",
+        "orders/ORD-001.json"
+      ],
+      "action": "Locate additional delivery or correct the order"
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+      "issue_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+      "order_id": "ORD-001",
+      "status": "resolved",
+      "action": "Obtain signed customer confirmation",
+      "resolution": "Evidence reverified"
+    },
+    {
+      "task_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+      "issue_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+      "order_id": "ORD-001",
+      "status": "open",
+      "action": "Locate additional delivery or correct the order",
+      "resolution": null
+    }
+  ],
+  "log": [
+    {
+      "step": "match_documents",
+      "detail": "ORD-001: 1 deliveries"
+    },
+    {
+      "step": "check_evidence",
+      "detail": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT: CEMENT: ordered 100, delivered 95"
+    },
+    {
+      "step": "resolve_evidence_task",
+      "detail": "ORD-001:DEL-001:MISSING_SIGNATURE"
+    },
+    {
+      "step": "archive_result",
+      "detail": "1 active issues"
+    }
+  ]
+}

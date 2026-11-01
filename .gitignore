@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+.pytest_tmp/
+*.sqlite3
+.env
+.venv/
+.tmp/
+report.json
+uploads/
+.acceptance_tmp/
+.acceptance_tmp_02/
+docs/screenshots/
+*.log

@@ -1,0 +1,131 @@
+{
+  "verification": {
+    "order_id": "ORD-001",
+    "status": "verified",
+    "issues": [],
+    "tasks": [
+      {
+        "task_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+        "issue_id": "ORD-001:DEL-001:MISSING_SIGNATURE",
+        "order_id": "ORD-001",
+        "status": "resolved",
+        "action": "Obtain signed customer confirmation",
+        "resolution": "Evidence reverified"
+      },
+      {
+        "task_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+        "issue_id": "ORD-001:order:ORDER_QTY_MISMATCH:CEMENT",
+        "order_id": "ORD-001",
+        "status": "resolved",
+        "action": "Locate additional delivery or correct the order",
+        "resolution": "Evidence reverified"
+      }
+    ],
+    "log": [
+      {
+        "step": "match_documents",
+        "detail": "ORD-001: 2 deliveries"
+      },
+      {
+        "step": "archive_result",
+        "detail": "0 active issues"
+      }
+    ]
+  },
+  "agent_summary": "No issues found by deterministic checks.",
+  "tool_log": [
+    {
+      "tool": "query_order",
+      "arguments": {
+        "order_id": "ORD-001"
+      },
+      "result": {
+        "order_id": "ORD-001",
+        "customer": "张先生",
+        "currency": "CNY",
+        "items": [
+          {
+            "sku": "CEMENT",
+            "quantity": "100",
+            "unit_price": "30"
+          }
+        ],
+        "source": "orders/ORD-001.json"
+      }
+    },
+    {
+      "tool": "match_documents",
+      "arguments": {
+        "order_id": "ORD-001"
+      },
+      "result": {
+        "deliveries": [
+          {
+            "delivery_id": "DEL-001",
+            "order_id": "ORD-001",
+            "customer": "张先生",
+            "items": [
+              {
+                "sku": "CEMENT",
+                "quantity": "95",
+                "unit_price": "30"
+              }
+            ],
+            "declared_amount": "2850",
+            "source": "deliveries/DEL-001.json"
+          },
+          {
+            "delivery_id": "DEL-001-B",
+            "order_id": "ORD-001",
+            "customer": "张先生",
+            "items": [
+              {
+                "sku": "CEMENT",
+                "quantity": "5",
+                "unit_price": "30"
+              }
+            ],
+            "declared_amount": "150",
+            "source": "deliveries/DEL-001-B.json"
+          }
+        ],
+        "confirmations": [
+          {
+            "confirmation_id": "CONF-001-A",
+            "delivery_id": "DEL-001",
+            "items": [
+              {
+                "sku": "CEMENT",
+                "quantity": "95"
+              }
+            ],
+            "evidence_ref": "signed/DEL-001-A.pdf",
+            "source": "confirmations/CONF-001-A.json"
+          },
+          {
+            "confirmation_id": "CONF-001-B",
+            "delivery_id": "DEL-001-B",
+            "items": [
+              {
+                "sku": "CEMENT",
+                "quantity": "5"
+              }
+            ],
+            "evidence_ref": "signed/DEL-001-B.pdf",
+            "source": "confirmations/CONF-001-B.json"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "check_evidence",
+      "arguments": {
+        "order_id": "ORD-001"
+      },
+      "result": {
+        "issues": []
+      }
+    }
+  ],
+  "stopped_at_limit": false
+}
